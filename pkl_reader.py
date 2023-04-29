@@ -1,0 +1,119 @@
+import pandas as pd
+import sqlite3
+import numpy as np
+import plotly.express as px
+
+
+def continuous_simple(df):
+    # Need to manually check if too many Nan values in confidence might affect the data
+    mask = df['workload_confidence'].isnull()
+    indices = df[mask].index
+
+    # Drop Nan values in confidence
+    df = df.drop(indices)
+
+    # Switch string values with ints
+    map_dict = {'Underload': 0, 'Optimal': 33, 'Overload': 100}
+    df['workload_classification'] = df['workload_classification'].map(map_dict)
+
+    # Create continuous labels
+    continuous_labels = []
+    for index, row in df.iterrows():
+        if df.iloc[index, 0] == 100:
+            continuous_labels.append(df.iloc[index, 0]+(df.iloc[index, 1]*100-100)/2)
+        else:
+            continuous_labels.append(df.iloc[index, 0]+(100-df.iloc[index, 1]*100)/2)
+    return np.array(continuous_labels), indices
+
+
+def continuous_complex(df):
+    # Need to manually check if too many Nan values in confidence might affect the data
+    mask = df['workload_confidence'].isnull()
+    indices = df[mask].index
+
+    # Switch string values with ints
+    map_dict = {'Underload': 0, 'Optimal': 50, 'Overload': 100}
+    df['workload_classification'] = df['workload_classification'].map(map_dict)
+
+    # Create continuous labels
+    continuous_labels = []
+    last_load = None
+    for index, row in df.iterrows():
+
+        if index != 0 and df.iloc[index, 0] != df.iloc[index-1, 0]:
+            last_load = df.iloc[index-1, 0]
+
+        if df.iloc[index, 0] == 100:
+            continuous_labels.append(df.iloc[index, 0] + (df.iloc[index, 1]*100 - 100) / 2)
+        elif df.iloc[index, 0] == 50:
+            if last_load == 0:
+                continuous_labels.append(df.iloc[index, 0] + (df.iloc[index, 1]*100 - 100) / 4)
+            elif last_load == 100:
+                continuous_labels.append(df.iloc[index, 0] + (100 - df.iloc[index, 1]*100) / 4)
+        else:
+            continuous_labels.append(df.iloc[index, 0] + (100 - df.iloc[index, 1]*100) / 3)
+
+    return np.array(continuous_labels), indices
+
+
+def readFile_sqlite(file_name: str, transformation: str):
+    # Connect to the SQLite database file
+    conn = sqlite3.connect(file_name)
+
+    tables = {
+        'classified': 'ocarina_biomeasures_classified_hemodynamics',
+        'light': 'ocarina_biomeasures_light_intensities',
+        'markers': 'ocarina_biomeasures_markers',
+        'hemodynamics': 'ocarina_biomeasures_processed_hemodynamics'
+    }
+
+    # Query the database and fetch the results into a Pandas dataframe
+    df_classified = pd.read_sql_query("SELECT * FROM ocarina_biomeasures_classified_hemodynamics", conn)
+    df_light = pd.read_sql_query("SELECT * FROM ocarina_biomeasures_light_intensities", conn)
+    df_hemodynamics = pd.read_sql_query("SELECT * FROM ocarina_biomeasures_processed_hemodynamics", conn)
+
+    # any_null_ = df_light.isna().any(axis=1)
+    # first = df_light[any_null_]
+    # any_null_rows = df_hemodynamics.isna().any(axis=1)
+    # sec = df_hemodynamics[any_null_rows]
+
+    # Trim data
+    df_classified = df_classified.iloc[:, 3:]
+    df_light = df_light.iloc[:, :-3]
+    df_hemodynamics = df_hemodynamics.iloc[:, 3:]
+
+    # Turn workload classification into a continuous variable
+    if transformation == 'simple':
+        df_simple_class, indices = continuous_simple(df_classified)
+        x = np.arange(df_simple_class.shape[0])
+        # fig_1 = px.line(x=x, y=df_simple_class,
+        #                 title='Linear Transformation (Yunmei)',
+        #                 labels={'x': 'Datapoint', 'y': 'Workload'})
+        # fig_1.show()
+        df = pd.concat([pd.DataFrame(df_simple_class, columns=['Workload']), df_light, df_hemodynamics], axis=1)
+        df = df.drop(indices)
+
+    elif transformation == 'complex':
+        df_complex_class, indices = continuous_complex(df_classified)
+        x = np.arange(df_complex_class.shape[0])
+        # fig_2 = px.line(x=x, y=df_complex_class,
+        #                 title='Linear Transformation (Nick)',
+        #                 labels={'x': 'Datapoint', 'y': 'Workload'})
+        # fig_2.show()
+        df = pd.concat([pd.DataFrame(df_complex_class, columns=['Workload']), df_light, df_hemodynamics], axis=1)
+        df = df.drop(indices)
+
+    else:
+        raise ValueError('Not an acceptable transformation. Supported transformations: simple, complex')
+
+    return df
+
+def readFile_pkl(file_name: str):
+
+    df = pd.read_pickle(file_name)
+    wkld = df.iloc[:, -3:]
+    last_target = df.columns.get_loc('Opt16_Oxy3')
+    first_target = df.columns.get_loc('Opt1_HbR')
+    df = df.iloc[:, first_target:last_target+1]
+    return df
+
