@@ -66,7 +66,7 @@ def wrangle(df, seq_length, label_length, batch_size):
     return train_dataloader, test_dataloader
 
 
-def wrangle_cross(df, seq_length, label_length, batch_size, k_folds):
+def wrangle_cross(df, seq_length, label_length, batch_size, k_folds):  # need to modify
     input_data, labels = create_sequences(df, seq_length, label_length)
 
     # Convert data and labels to PyTorch tensors

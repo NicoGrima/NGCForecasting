@@ -13,7 +13,7 @@ cross_val = True
 """Define hyperparams"""
 batch_size = 64
 learning_rate = 0.001
-epochs = 25
+epochs = 10
 seq_length = 500
 label_length = 100
 
