@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
-from torch.utils.data import TensorDataset
-from torch.utils.data import DataLoader
-from sklearn.model_selection import train_test_split
+from torch.utils.data import TensorDataset, DataLoader, Subset
+from sklearn.model_selection import train_test_split, KFold
 import torch
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import mean_squared_error
@@ -64,7 +63,33 @@ def wrangle(df, seq_length, label_length, batch_size):
     test_dataset = TensorDataset(test_data, test_labels)
     test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-    return train_dataset, train_dataloader, test_dataset, test_dataloader
+    return train_dataloader, test_dataloader
+
+
+def wrangle_cross(df, seq_length, label_length, batch_size, k_folds):
+    input_data, labels = create_sequences(df, seq_length, label_length)
+
+    # Convert data and labels to PyTorch tensors
+    input_data = torch.tensor(input_data, dtype=torch.float32)
+    labels = torch.tensor(labels, dtype=torch.float32)
+
+    # Create PyTorch DataLoader object for the whole dataset
+    dataset = TensorDataset(input_data, labels)
+
+    # Perform k-fold cross-validation
+    kfold = KFold(n_splits=k_folds, shuffle=True)
+    fold_dataloaders = []
+
+    for train_indices, test_indices in kfold.split(dataset):
+        train_subset = Subset(dataset, train_indices)
+        test_subset = Subset(dataset, test_indices)
+
+        train_dataloader = DataLoader(train_subset, batch_size=batch_size, shuffle=True)
+        test_dataloader = DataLoader(test_subset, batch_size=batch_size, shuffle=False)
+
+        fold_dataloaders.append((train_dataloader, test_dataloader))
+
+    return fold_dataloaders
 
 
 def prediction(df, seq_length, label_length, model, device):

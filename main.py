@@ -3,17 +3,17 @@ import torch.nn as nn
 import torch.optim as optim
 from pkl_reader import readFile_sqlite
 from model import CNN_LSTM
-from utils import wrangle, prediction
-from train import train_model
+from utils import wrangle, prediction, wrangle_cross
+from train import train_model, cross_train_model
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
+cross_val = True
 
 """Define hyperparams"""
 batch_size = 64
 learning_rate = 0.001
-epochs = 15
+epochs = 25
 seq_length = 500
 label_length = 100
 
@@ -23,7 +23,11 @@ label_length = 100
 """Load data"""
 data_path = "9636/9636_10.sqlite"
 df = readFile_sqlite(data_path, transformation='simple')
-train_dataset, train_dataloader, test_dataset, test_dataloader = wrangle(df, seq_length, label_length, batch_size)
+
+if not cross_val:
+    train_dataloader, test_dataloader = wrangle(df, seq_length, label_length, batch_size)
+else:
+    fold_dataloader = wrangle_cross(df, seq_length, label_length, batch_size, k_folds=5)
 
 """Define optimizer and loss func"""
 cnn_lstm = CNN_LSTM(df.shape[1], label_length).to(device)
@@ -32,9 +36,10 @@ optimizer = optim.Adam(cnn_lstm.parameters(), lr=learning_rate)
 criterion = nn.L1Loss()
 
 """Train model"""
-train_model(train_dataloader, test_dataloader, epochs, optimizer, criterion, cnn_lstm, device)
-# Save model
-torch.save(cnn_lstm.state_dict(), 'cnn_lstm.pth')
+if not cross_val:
+    train_model(train_dataloader, test_dataloader, epochs, optimizer, criterion, cnn_lstm, device)
+else:
+    cross_train_model(fold_dataloader, epochs, optimizer, criterion, cnn_lstm, device)
 
 """Get predictions"""
 prediction(df, seq_length, label_length, cnn_lstm, device)
