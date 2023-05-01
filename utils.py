@@ -9,43 +9,43 @@ import matplotlib.pyplot as plt
 import time
 
 
-def normalize(seq_data, label=0):
+def normalize(seq_data, label_target='target', label=0):
     sequence_norm = []
     sequence_mean = []
     sequence_std = []
-    for col in range(seq_data.shape[1]):
-        mean = seq_data[:, col].mean()
+    target_num = seq_data.columns.get_loc(label_target)
+    for col in seq_data.columns:
+        mean = seq_data[col].mean()
         sequence_mean.append(mean)
-        std = seq_data[:, col].std()
+        std = seq_data[col].std()
         sequence_std.append(std)
-        if std == 0:
-            pass
-        sequence_norm.append(np.array(list(map(lambda x: (x - sequence_mean[col]) / sequence_std[col], seq_data[:, col].T))))
-    label_norm = (label - sequence_mean[2]) / sequence_std[2]
+        norm_seq = (seq_data[col]-mean)/std
+        sequence_norm.append(np.array(norm_seq))
+    label_norm = (label - sequence_mean[target_num]) / sequence_std[target_num]
     return np.array(sequence_norm), label_norm, sequence_mean, sequence_std
 
 
-def create_sequences(input_data: pd.DataFrame, sequence_length=10, label_length=1):
+def create_sequences(input_data: pd.DataFrame, label_target: str, sequence_length=10, label_length=1):
     sequences = []
     labels = []
     data_size = len(input_data)
 
     for i in range(data_size - sequence_length - label_length):
-        sequence = input_data[i:i + sequence_length].to_numpy()
+        sequence = input_data[i:i + sequence_length]  #.to_numpy()
 
-        label_start = i + sequence_length + 1
+        label_start = i + sequence_length
         label_end = label_start + label_length
-        label = input_data['Workload'][label_start:label_end]
+        label = input_data[label_target][label_start:label_end]
 
-        sequence_norm, label_norm, _, _ = normalize(sequence, label)
+        sequence_norm, label_norm, _, _ = normalize(sequence, label_target, label)
         sequences.append(sequence_norm)
         labels.append(label_norm)
 
     return np.array(sequences), np.array(labels)
 
 
-def wrangle(df, seq_length, label_length, batch_size):
-    input_data, labels = create_sequences(df, seq_length, label_length)
+def wrangle(df, seq_length, label_length, batch_size, label_target='Workload', cross_val='False', k_folds=5):
+    input_data, labels = create_sequences(df, label_target, seq_length, label_length)
 
     # Train-test split
     train_data, test_data, train_labels, test_labels = train_test_split(input_data, labels, test_size=0.2)
@@ -58,60 +58,59 @@ def wrangle(df, seq_length, label_length, batch_size):
 
     # Create PyTorch DataLoader objects for train and test data
     train_dataset = TensorDataset(train_data, train_labels)
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-
     test_dataset = TensorDataset(test_data, test_labels)
     test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-    return train_dataloader, test_dataloader
+    if cross_val:
+        # Perform k-fold cross-validation
+        kfold = KFold(n_splits=k_folds, shuffle=True)
+        fold_dataloaders = []
+
+        for train_indices, val_indices in kfold.split(train_dataset):
+            train_subset = Subset(train_dataset, train_indices)
+            val_subset = Subset(train_dataset, val_indices)
+
+            train_dataloader = DataLoader(train_subset, batch_size=batch_size, shuffle=True)
+            val_dataloader = DataLoader(val_subset, batch_size=batch_size, shuffle=False)
+
+            fold_dataloaders.append((train_dataloader, val_dataloader))
+
+        return fold_dataloaders, test_dataloader
+    else:
+        train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        return train_dataloader, test_dataloader
 
 
-def wrangle_cross(df, seq_length, label_length, batch_size, k_folds):  # need to modify
-    input_data, labels = create_sequences(df, seq_length, label_length)
-
-    # Train-test split
-    train_data, test_data, train_labels, test_labels = train_test_split(input_data, labels, test_size=0.2)
-
-    # Convert data and labels to PyTorch tensors
-    train_data = torch.tensor(train_data, dtype=torch.float32)
-    train_labels = torch.tensor(train_labels, dtype=torch.float32)
-    test_data = torch.tensor(test_data, dtype=torch.float32)
-    test_labels = torch.tensor(test_labels, dtype=torch.float32)
-
-    # Create PyTorch DataLoader object for the whole dataset
-    test_dataset = TensorDataset(test_data, test_labels)
-    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-
-    train_dataset = TensorDataset(train_data, train_labels)
-
-    # Perform k-fold cross-validation
-    kfold = KFold(n_splits=k_folds, shuffle=True)
-    fold_dataloaders = []
-
-    for train_indices, val_indices in kfold.split(train_dataset):
-        train_subset = Subset(train_dataset, train_indices)
-        val_subset = Subset(train_dataset, val_indices)
-
-        train_dataloader = DataLoader(train_subset, batch_size=batch_size, shuffle=True)
-        val_dataloader = DataLoader(val_subset, batch_size=batch_size, shuffle=False)
-
-        fold_dataloaders.append((train_dataloader, val_dataloader))
-
-    return fold_dataloaders, test_dataloader
-
-
-def get_metrics(test_dataloader, model, device):
+def get_metrics(test_dataloader, model, target_num, device, model_type: str):
     real_vals = []
     predicted_vals = []
 
     with torch.no_grad():
-        for i, (inputs, labels) in enumerate(test_dataloader):
-            inputs = inputs.to(device)
-            labels = np.array(labels)
-            real_vals.append(labels)
+        if model_type == 'LSTM':
+            for i, (inputs, labels) in enumerate(test_dataloader):
+                inputs = inputs.to(device)
+                labels = np.array(labels)
+                real_vals.append(labels)
 
-            outputs = np.array(model.forward(inputs).to('cpu'))
-            predicted_vals.append(outputs)
+                outputs = np.array(model.forward(inputs).to('cpu'))
+                predicted_vals.append(outputs)
+        elif model_type == 'Transformer':
+            for i, (enc_input, labels) in enumerate(test_dataloader):
+                enc_input = enc_input.to(device)
+                real_vals.append(np.array(labels))
+                labels = labels.to(device)
+
+                # Initialize the decoder input with a start token (here, we use the first target value)
+                token_input = enc_input[:, target_num, -1:]
+                dec_input = token_input
+
+                # Generate the output sequence iteratively
+                outputs = None
+                for t in range(labels.size(1)):
+                    outputs = model.forward(enc_input, dec_input, training=False)
+                    dec_input = torch.cat((token_input, outputs.squeeze(2)), dim=1)
+                outputs = np.array(outputs.to('cpu'))
+                predicted_vals.append(outputs)
 
     real_vals = np.vstack(real_vals)
     predicted_vals = np.vstack(predicted_vals)
@@ -130,7 +129,7 @@ def get_metrics(test_dataloader, model, device):
     # print('Accuracy for entire prediction of the time series is: ' + str(accuracy))
 
 
-def graph_predictions(df, seq_length, label_length, model, device):
+def graph_predictions(df, seq_length, label_length, model, device, model_type: str):
     predicted = df['Workload'][0:seq_length].to_numpy()
     comp_times = []
 

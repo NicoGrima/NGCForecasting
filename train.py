@@ -1,11 +1,11 @@
 import torch
-from torch.utils.data import DataLoader, Subset
-from sklearn.model_selection import KFold
 
 
-def train_model(train_dataloader, test_dataloader, epochs, optimizer, criterion, model, device):
+def train_lstm(epochs, model, train_dataloader, val_dataloader, optimizer, criterion, device):
     for epoch in range(epochs):
         train_loss = 0.0
+        model.train()
+
         for i, (inputs, labels) in enumerate(train_dataloader):
             optimizer.zero_grad()
 
@@ -21,14 +21,60 @@ def train_model(train_dataloader, test_dataloader, epochs, optimizer, criterion,
             train_loss += loss.item()
 
         test_loss = 0.0
+        model.eval()
         with torch.no_grad():
-            for i, (inputs, labels) in enumerate(test_dataloader):
+            for i, (inputs, labels) in enumerate(val_dataloader):
                 inputs = inputs.to(device)
                 labels = labels.to(device)
 
                 outputs = model.forward(inputs)
                 loss = criterion(outputs, labels)
 
+                test_loss += loss.item()
+
+        print('Epoch [{}/{}], Train Loss: {:.4f}, Validation Loss: {:.4f}'
+              .format(epoch + 1, epochs, train_loss / len(train_dataloader), test_loss / len(val_dataloader)))
+
+    # Save model
+    torch.save(model.state_dict(), 'cnn_lstm.pth')
+
+
+def train_transfortmer(epochs, model, train_dataloader, test_dataloader, optimizer, criterion, target_num, device):
+    for epoch in range(epochs):
+        train_loss = 0.0
+        for i, (enc_input, labels) in enumerate(train_dataloader):
+            optimizer.zero_grad()
+
+            enc_input = enc_input.to(device)
+            labels = labels.to(device)
+            dec_input = torch.cat((enc_input[:, target_num, -1].unsqueeze(1), labels[:, :-1]), dim=1)
+
+            outputs = model.forward(enc_input, dec_input, training=True)
+            loss = criterion(outputs.squeeze(-1), labels)
+
+            loss.backward()
+            optimizer.step()
+
+            train_loss += loss.item()
+
+        test_loss = 0.0
+        with torch.no_grad():
+            for i, (enc_input, labels) in enumerate(test_dataloader):
+                enc_input = enc_input.to(device)
+                labels = labels.to(device)
+
+                # Initialize the decoder input with a start token (here, we use the first target value)
+                token_input = enc_input[:, target_num, -1:]
+                dec_input = token_input
+
+                # Generate the output sequence iteratively
+                for t in range(labels.size(1)):
+                    outputs = model.forward(enc_input, dec_input, training=False)
+                    dec_input = torch.cat((token_input, outputs.squeeze(2)),
+                                          dim=1)  # if label_length > 1 else outputs[:, -1:]
+
+                # Calculate the loss
+                loss = criterion(outputs.squeeze(-1), labels)
                 test_loss += loss.item()
 
         print('Epoch [{}/{}], Train Loss: {:.4f}, Test Loss: {:.4f}'
@@ -38,40 +84,24 @@ def train_model(train_dataloader, test_dataloader, epochs, optimizer, criterion,
     torch.save(model.state_dict(), 'cnn_lstm.pth')
 
 
-def cross_train_model(fold_dataloaders, epochs, optimizer, criterion, model, device):
+def train_model(train_dataloader, test_dataloader, epochs, optimizer, criterion, model,
+                target_num, device, model_type: str):
+    if model_type == 'LSTM':
+        train_lstm(epochs, model, train_dataloader, test_dataloader, optimizer, criterion, device)
+    elif model_type == 'Transformer':
+        train_transfortmer(epochs, model, train_dataloader, test_dataloader, optimizer, criterion, target_num, device)
+    else:
+        raise ValueError('Model type not available. Possible selections: "LSTM" or "Transformer"')
+
+
+def cross_train_model(fold_dataloaders, epochs, optimizer, criterion, model, target_num,
+                      device, model_type: str):
     for fold, (train_dataloader, val_dataloader) in enumerate(fold_dataloaders):
         print(f'FOLD {fold + 1}')
-
-        for epoch in range(epochs):
-            train_loss = 0.0
-            model.train()
-
-            for i, (inputs, labels) in enumerate(train_dataloader):
-                optimizer.zero_grad()
-
-                inputs = inputs.to(device)
-                labels = labels.to(device)
-
-                outputs = model.forward(inputs)
-                loss = criterion(outputs, labels)
-
-                loss.backward()
-                optimizer.step()
-
-                train_loss += loss.item()
-
-            test_loss = 0.0
-            model.eval()
-            with torch.no_grad():
-                for i, (inputs, labels) in enumerate(val_dataloader):
-                    inputs = inputs.to(device)
-                    labels = labels.to(device)
-
-                    outputs = model.forward(inputs)
-                    loss = criterion(outputs, labels)
-
-                    test_loss += loss.item()
-
-            print('Epoch [{}/{}], Train Loss: {:.4f}, Validation Loss: {:.4f}'
-                  .format(epoch + 1, epochs, train_loss / len(train_dataloader), test_loss / len(val_dataloader)))
-
+        if model_type == 'LSTM':
+            train_lstm(epochs, model, train_dataloader, val_dataloader, optimizer, criterion, device)
+        elif model_type == 'Transformer':
+            train_transfortmer(epochs, model, train_dataloader, val_dataloader, optimizer, criterion, target_num,
+                               device)
+        else:
+            raise ValueError('Model type not available. Possible selections: "LSTM" or "Transformer"')

@@ -1,8 +1,7 @@
 import pandas as pd
 import sqlite3
 import numpy as np
-import plotly.express as px
-
+import matplotlib.pyplot as plt
 
 def continuous_simple(df):
     # Need to manually check if too many Nan values in confidence might affect the data
@@ -56,7 +55,21 @@ def continuous_complex(df):
     return np.array(continuous_labels), indices
 
 
-def readFile_sqlite(file_name: str, transformation: str):
+def graph_figures(df_cat, df_linear):
+    x = np.arange(df_linear.shape[0])
+    cat = df_cat['workload_classification'].dropna()
+    map_dict = {'Underload': 0, 'Optimal': 50, 'Overload': 100}
+    cat = cat.map(map_dict).values
+    plt.plot(x, df_linear, label='Continuous')
+    plt.plot(x, cat, label='Categorical')
+    plt.xlabel('Time')
+    plt.ylabel('Workload')
+    plt.title('Linear Transformation of Workload')
+    plt.legend(fontsize=12, loc='lower left')
+    plt.show()
+
+
+def readFile_sqlite(file_name: str, transformation: str, graph_comparison=False):
     # Connect to the SQLite database file
     conn = sqlite3.connect(file_name)
 
@@ -84,23 +97,17 @@ def readFile_sqlite(file_name: str, transformation: str):
 
     # Turn workload classification into a continuous variable
     if transformation == 'simple':
-        df_simple_class, indices = continuous_simple(df_classified)
-        x = np.arange(df_simple_class.shape[0])
-        # fig_1 = px.line(x=x, y=df_simple_class,
-        #                 title='Linear Transformation (Yunmei)',
-        #                 labels={'x': 'Datapoint', 'y': 'Workload'})
-        # fig_1.show()
-        df = pd.concat([pd.DataFrame(df_simple_class, columns=['Workload']), df_light, df_hemodynamics], axis=1)
+        df_simple_linear, indices = continuous_simple(df_classified)
+        if graph_comparison:
+            graph_figures(df_classified, df_simple_linear)
+        df = pd.concat([pd.DataFrame(df_simple_linear, columns=['Workload']), df_light, df_hemodynamics], axis=1)
         df = df.drop(indices)
 
     elif transformation == 'complex':
-        df_complex_class, indices = continuous_complex(df_classified)
-        x = np.arange(df_complex_class.shape[0])
-        # fig_2 = px.line(x=x, y=df_complex_class,
-        #                 title='Linear Transformation (Nick)',
-        #                 labels={'x': 'Datapoint', 'y': 'Workload'})
-        # fig_2.show()
-        df = pd.concat([pd.DataFrame(df_complex_class, columns=['Workload']), df_light, df_hemodynamics], axis=1)
+        df_complex_linear, indices = continuous_complex(df_classified)
+        if graph_comparison:
+            graph_figures(df_classified, df_complex_linear)
+        df = pd.concat([pd.DataFrame(df_complex_linear, columns=['Workload']), df_light, df_hemodynamics], axis=1)
         df = df.drop(indices)
 
     else:
