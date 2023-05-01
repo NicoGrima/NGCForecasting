@@ -129,21 +129,43 @@ def get_metrics(test_dataloader, model, target_num, device, model_type: str):
     # print('Accuracy for entire prediction of the time series is: ' + str(accuracy))
 
 
-def graph_predictions(df, seq_length, label_length, model, device, model_type: str):
+def graph_predictions(df, seq_length, label_length, model, target_num, enc_length, device, model_type: str):
     predicted = df['Workload'][0:seq_length].to_numpy()
     comp_times = []
 
-    for t in range(seq_length, df.shape[0] - label_length + 1, label_length):
-        data = df[t - seq_length:t]
-        norm_data, _, norm_mean, norm_std = normalize(data.to_numpy())
-        norm_tensor = torch.tensor([norm_data], dtype=torch.float32).to(device)
-        start_time = time.time()  # Start time
-        prediction = model.forward(norm_tensor).cpu().detach().numpy()
-        prediction = list(map(lambda x: (prediction * norm_std[2] + norm_mean[2]), prediction))
-        end_time = time.time()  # End time
-        predicted = np.append(predicted, prediction[0][0])
-        comp_times.append(end_time - start_time)
+    if model_type == 'LSTM':
+        for t in range(seq_length, df.shape[0] - label_length + 1, label_length):
+            data = df[t - seq_length:t]
+            norm_data, _, norm_mean, norm_std = normalize(data.to_numpy())
+            norm_tensor = torch.tensor([norm_data], dtype=torch.float32).to(device)
+            start_time = time.time()  # Start time
+            prediction = model.forward(norm_tensor).cpu().detach().numpy()
+            prediction = list(map(lambda x: (prediction * norm_std[2] + norm_mean[2]), prediction))
+            end_time = time.time()  # End time
+            predicted = np.append(predicted, prediction[0][0])
+            comp_times.append(end_time - start_time)
 
+    elif model_type == 'Transformers':
+        for t in range(enc_length, df.shape[0] - label_length + 1, label_length):
+            data = df[t - enc_length:t]
+            norm_data, _, norm_mean, norm_std = normalize(data, 'Open')
+            norm_tensor = torch.tensor([norm_data], dtype=torch.float32)
+            token_tensor = norm_tensor[:, target_num, -1].unsqueeze(-1).to(device)
+            dec_tensor = token_tensor
+            input_tensor = norm_tensor.to(device)
+            start_time = time.time()  # Start time
+            prediction = []
+            output = None
+            for i in range(label_length):
+                output = model.forward(input_tensor, dec_tensor, training=False)
+                dec_tensor = torch.cat((token_tensor, output.squeeze(2)), dim=1)
+            prediction = output.cpu().detach().numpy()
+            prediction = list(map(lambda x: (prediction * norm_std[target_num] + norm_mean[target_num]), prediction))
+            end_time = time.time()  # End time
+            predicted = np.append(predicted, prediction[0][0])
+            comp_times.append(end_time - start_time)
+
+    # account for sequence length mismatch with total data size
     leftover = (df.shape[0] % label_length) * -1 if df.shape[0] % label_length != 0 else df.shape[0]
 
     # Computation time average

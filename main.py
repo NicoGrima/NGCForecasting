@@ -52,5 +52,5 @@ else:
                       device, model_select)
 
 """Get prediction graph and metrics"""
-graph_predictions(df, seq_length, label_length, model, device)
+graph_predictions(df, seq_length, label_length, model, target_num, seq_length, device, model_select)
 get_metrics(test_dataloader, model, target_num, device, model_select)
