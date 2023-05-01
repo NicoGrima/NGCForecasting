@@ -39,7 +39,7 @@ def train_model(train_dataloader, test_dataloader, epochs, optimizer, criterion,
 
 
 def cross_train_model(fold_dataloaders, epochs, optimizer, criterion, model, device):
-    for fold, (train_dataloader, test_dataloader) in enumerate(fold_dataloaders):
+    for fold, (train_dataloader, val_dataloader) in enumerate(fold_dataloaders):
         print(f'FOLD {fold + 1}')
 
         for epoch in range(epochs):
@@ -63,7 +63,7 @@ def cross_train_model(fold_dataloaders, epochs, optimizer, criterion, model, dev
             test_loss = 0.0
             model.eval()
             with torch.no_grad():
-                for i, (inputs, labels) in enumerate(test_dataloader):
+                for i, (inputs, labels) in enumerate(val_dataloader):
                     inputs = inputs.to(device)
                     labels = labels.to(device)
 
@@ -72,6 +72,6 @@ def cross_train_model(fold_dataloaders, epochs, optimizer, criterion, model, dev
 
                     test_loss += loss.item()
 
-            print('Epoch [{}/{}], Train Loss: {:.4f}, Test Loss: {:.4f}'
-                  .format(epoch + 1, epochs, train_loss / len(train_dataloader), test_loss / len(test_dataloader)))
+            print('Epoch [{}/{}], Train Loss: {:.4f}, Validation Loss: {:.4f}'
+                  .format(epoch + 1, epochs, train_loss / len(train_dataloader), test_loss / len(val_dataloader)))
 

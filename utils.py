@@ -69,34 +69,70 @@ def wrangle(df, seq_length, label_length, batch_size):
 def wrangle_cross(df, seq_length, label_length, batch_size, k_folds):  # need to modify
     input_data, labels = create_sequences(df, seq_length, label_length)
 
+    # Train-test split
+    train_data, test_data, train_labels, test_labels = train_test_split(input_data, labels, test_size=0.2)
+
     # Convert data and labels to PyTorch tensors
-    input_data = torch.tensor(input_data, dtype=torch.float32)
-    labels = torch.tensor(labels, dtype=torch.float32)
+    train_data = torch.tensor(train_data, dtype=torch.float32)
+    train_labels = torch.tensor(train_labels, dtype=torch.float32)
+    test_data = torch.tensor(test_data, dtype=torch.float32)
+    test_labels = torch.tensor(test_labels, dtype=torch.float32)
 
     # Create PyTorch DataLoader object for the whole dataset
-    dataset = TensorDataset(input_data, labels)
+    test_dataset = TensorDataset(test_data, test_labels)
+    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+    train_dataset = TensorDataset(train_data, train_labels)
 
     # Perform k-fold cross-validation
     kfold = KFold(n_splits=k_folds, shuffle=True)
     fold_dataloaders = []
 
-    for train_indices, test_indices in kfold.split(dataset):
-        train_subset = Subset(dataset, train_indices)
-        test_subset = Subset(dataset, test_indices)
+    for train_indices, val_indices in kfold.split(train_dataset):
+        train_subset = Subset(train_dataset, train_indices)
+        val_subset = Subset(train_dataset, val_indices)
 
         train_dataloader = DataLoader(train_subset, batch_size=batch_size, shuffle=True)
-        test_dataloader = DataLoader(test_subset, batch_size=batch_size, shuffle=False)
+        val_dataloader = DataLoader(val_subset, batch_size=batch_size, shuffle=False)
 
-        fold_dataloaders.append((train_dataloader, test_dataloader))
+        fold_dataloaders.append((train_dataloader, val_dataloader))
 
-    return fold_dataloaders
+    return fold_dataloaders, test_dataloader
 
 
-def prediction(df, seq_length, label_length, model, device):
+def get_metrics(test_dataloader, model, device):
+    real_vals = []
+    predicted_vals = []
+
+    with torch.no_grad():
+        for i, (inputs, labels) in enumerate(test_dataloader):
+            inputs = inputs.to(device)
+            labels = np.array(labels)
+            real_vals.append(labels)
+
+            outputs = np.array(model.forward(inputs).to('cpu'))
+            predicted_vals.append(outputs)
+
+    real_vals = np.vstack(real_vals)
+    predicted_vals = np.vstack(predicted_vals)
+    print(real_vals.shape)
+
+    # MAE for predictions
+    mae = mean_absolute_error(predicted_vals, real_vals)
+    print('MAE for entire predictions of the time series is: ' + str(mae))
+
+    # MSE for predictions
+    mse = mean_squared_error(predicted_vals, real_vals)
+    print('MSE for entire predictions of the time series is: ' + str(mse))
+
+    # Accuracy for predictions
+    # accuracy = acct / (acct + false)
+    # print('Accuracy for entire prediction of the time series is: ' + str(accuracy))
+
+
+def graph_predictions(df, seq_length, label_length, model, device):
     predicted = df['Workload'][0:seq_length].to_numpy()
     comp_times = []
-    acct_preds = 0
-    false_preds = 0
 
     for t in range(seq_length, df.shape[0] - label_length + 1, label_length):
         data = df[t - seq_length:t]
@@ -106,30 +142,10 @@ def prediction(df, seq_length, label_length, model, device):
         prediction = model.forward(norm_tensor).cpu().detach().numpy()
         prediction = list(map(lambda x: (prediction * norm_std[2] + norm_mean[2]), prediction))
         end_time = time.time()  # End time
-        true_val = df['Workload'][t]
-        last_val = df['Workload'][t - 1]
-        # last_vals.append(last_val)
-        if (prediction[0][0][0] > last_val and true_val > last_val) or (
-                prediction[0][0][0] < last_val and true_val < last_val):
-            acct_preds += 1
-        else:
-            false_preds += 1
         predicted = np.append(predicted, prediction[0][0])
         comp_times.append(end_time - start_time)
 
     leftover = (df.shape[0] % label_length) * -1 if df.shape[0] % label_length != 0 else df.shape[0]
-
-    # MAE for predictions
-    mae = mean_absolute_error(df['Workload'].to_numpy()[seq_length:leftover], predicted[seq_length:])
-    print('MAE for entire predictions of the time series is: ' + str(mae))
-
-    # MSE for predictions
-    mse = mean_squared_error(df['Workload'].to_numpy()[seq_length:leftover], predicted[seq_length:])
-    print('MSE for entire predictions of the time series is: ' + str(mse))
-
-    # Accuracy for predictions
-    accuracy = acct_preds / (acct_preds + false_preds)
-    print('Accuracy for entire prediction of the time series is: ' + str(accuracy))
 
     # Computation time average
     print('Time of computation for each prediction is: ' + str(np.mean(comp_times)))
