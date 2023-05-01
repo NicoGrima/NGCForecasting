@@ -130,7 +130,7 @@ def get_metrics(test_dataloader, model, target_num, device, model_type: str):
 
 
 def graph_predictions(df, seq_length, label_length, model, target_num, enc_length, device, model_type: str):
-    predicted = df['Workload'][0:seq_length].to_numpy()
+    predicted = df.iloc[:, target_num][0:seq_length].to_numpy()
     comp_times = []
 
     if model_type == 'LSTM':
@@ -173,7 +173,7 @@ def graph_predictions(df, seq_length, label_length, model, target_num, enc_lengt
 
     """Plot predicted vs real"""
     days = range(len(predicted))
-    real = df['Workload'].to_numpy()[:leftover]
+    real = df.iloc[:, target_num].to_numpy()[:leftover]
 
     # Plot the data
     plt.plot(days, real, label='True')
