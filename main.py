@@ -9,7 +9,7 @@ from train import train_model, cross_train_model
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 cross_val = False  # whether to use cross validation
-model_select = 'Transformer'  # 'Transformer' or 'LSTM'
+model_select = 'LSTM'  # 'Transformer' or 'LSTM'
 
 # usable data:
 # 9636/10

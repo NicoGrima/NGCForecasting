@@ -131,12 +131,13 @@ def get_metrics(test_dataloader, model, target_num, device, model_type: str):
 
 def graph_predictions(df, seq_length, label_length, model, target_num, enc_length, device, model_type: str):
     predicted = df.iloc[:, target_num][0:seq_length].to_numpy()
+    target_name = df.columns[target_num]
     comp_times = []
 
     if model_type == 'LSTM':
         for t in range(seq_length, df.shape[0] - label_length + 1, label_length):
             data = df[t - seq_length:t]
-            norm_data, _, norm_mean, norm_std = normalize(data.to_numpy())
+            norm_data, _, norm_mean, norm_std = normalize(data, target_name)
             norm_tensor = torch.tensor([norm_data], dtype=torch.float32).to(device)
             start_time = time.time()  # Start time
             prediction = model.forward(norm_tensor).cpu().detach().numpy()
@@ -148,7 +149,7 @@ def graph_predictions(df, seq_length, label_length, model, target_num, enc_lengt
     elif model_type == 'Transformers':
         for t in range(enc_length, df.shape[0] - label_length + 1, label_length):
             data = df[t - enc_length:t]
-            norm_data, _, norm_mean, norm_std = normalize(data, 'Open')
+            norm_data, _, norm_mean, norm_std = normalize(data, target_name)
             norm_tensor = torch.tensor([norm_data], dtype=torch.float32)
             token_tensor = norm_tensor[:, target_num, -1].unsqueeze(-1).to(device)
             dec_tensor = token_tensor
