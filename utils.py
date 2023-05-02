@@ -141,7 +141,8 @@ def graph_predictions(df, seq_length, label_length, model, target_num, enc_lengt
             norm_tensor = torch.tensor([norm_data], dtype=torch.float32).to(device)
             start_time = time.time()  # Start time
             prediction = model.forward(norm_tensor).cpu().detach().numpy()
-            prediction = list(map(lambda x: (prediction * norm_std[2] + norm_mean[2]), prediction))
+            prediction = list(map(lambda x: (prediction * norm_std[target_num] + norm_mean[target_num]),
+                                  prediction))
             end_time = time.time()  # End time
             predicted = np.append(predicted, prediction[0][0])
             comp_times.append(end_time - start_time)
