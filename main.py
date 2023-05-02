@@ -53,7 +53,7 @@ criterion = nn.L1Loss()
 train_dataloader, test_dataloader = wrangle(df, seq_length, label_length, batch_size,
                                             label_target, cross_val=cross_val, k_folds=5)
 
-# Train the model with either train-test or cross-validation
+# Train the model with either train-test split or k-folds cross-validation
 if not cross_val:
     train_model(train_dataloader, test_dataloader, epochs, optimizer, criterion, model,
                 target_num, device, model_select)
