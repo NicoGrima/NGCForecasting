@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def continuous_simple(df):
-    # Need to manually check if too many Nan values in confidence might affect the data
+    # Check if too many Nan values in workload confidence
     mask = df['workload_confidence'].isnull()
     indices = df[mask].index
 
@@ -19,8 +19,11 @@ def continuous_simple(df):
     continuous_labels = []
     for index, row in df.iterrows():
         if df.iloc[index, 0] == 100:
+            # If overload then we predict 100 (with lower confidence values lowering the value)
             continuous_labels.append(df.iloc[index, 0]+(df.iloc[index, 1]*100-100)/2)
         else:
+            # If underload then we predict 0 (with lower confidence values increasing the value)
+            # If optimal then we predict 33 (with lower confidence values increasing the value)
             continuous_labels.append(df.iloc[index, 0]+(100-df.iloc[index, 1]*100)/2)
     return np.array(continuous_labels), indices
 
@@ -39,6 +42,7 @@ def continuous_complex(df):
     last_load = None
     for index, row in df.iterrows():
 
+        # Track the last workload (underload, optimal, overload)
         if index != 0 and df.iloc[index, 0] != df.iloc[index-1, 0]:
             last_load = df.iloc[index-1, 0]
 
@@ -46,8 +50,10 @@ def continuous_complex(df):
             continuous_labels.append(df.iloc[index, 0] + (df.iloc[index, 1]*100 - 100) / 2)
         elif df.iloc[index, 0] == 50:
             if last_load == 0:
+                # If the last workload value was underload then lower confidence means a value under 50
                 continuous_labels.append(df.iloc[index, 0] + (df.iloc[index, 1]*100 - 100) / 4)
             elif last_load == 100:
+                # If the last workload value was overload then lower confidence means a value over 50
                 continuous_labels.append(df.iloc[index, 0] + (100 - df.iloc[index, 1]*100) / 4)
         else:
             continuous_labels.append(df.iloc[index, 0] + (100 - df.iloc[index, 1]*100) / 3)
@@ -95,11 +101,14 @@ def readFile_sqlite(file_name: str, transformation: str, graph_comparison=False)
     df_light = df_light.iloc[:, :-3]
     df_hemodynamics = df_hemodynamics.iloc[:, 3:]
 
-    # Turn workload classification into a continuous variable
+    # Turn workload classification into a continuous variable (simple vs complex will determine the
+    # type of linear transformation)
     if transformation == 'simple':
         df_simple_linear, indices = continuous_simple(df_classified)
+        # If graph comparison is true then we graph the ordinal vs continuous data
         if graph_comparison:
             graph_figures(df_classified, df_simple_linear)
+        # Concatenate the data with the classification
         df = pd.concat([pd.DataFrame(df_simple_linear, columns=['Workload']), df_light, df_hemodynamics], axis=1)
         df = df.drop(indices)
 
@@ -111,7 +120,7 @@ def readFile_sqlite(file_name: str, transformation: str, graph_comparison=False)
         df = df.drop(indices)
 
     else:
-        raise ValueError('Not an acceptable transformation. Supported transformations: simple, complex')
+        raise ValueError('Not an acceptable transformation. Supported transformations: "simple" or "complex"')
 
     return df
 
