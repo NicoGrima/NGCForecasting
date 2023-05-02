@@ -20,7 +20,7 @@ data_path = "9636/9636_10.sqlite"
 df = readFile_sqlite(data_path, transformation='simple')
 df = df.iloc[:1000]
 
-"""Define hyperparams"""
+"""Define parameters"""
 batch_size = 64
 epochs = 15
 feature_size = 119  # number of features
