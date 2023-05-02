@@ -9,7 +9,7 @@ from train import train_model, cross_train_model
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 cross_val = False  # whether to use cross validation
-model_select = 'LSTM'  # 'Transformer' or 'LSTM'
+model_select = 'Transformer'  # 'Transformer' or 'LSTM'
 
 # usable data:
 # 9636/10
@@ -21,7 +21,7 @@ df = readFile_sqlite(data_path, transformation='simple')
 
 """Define parameters"""
 batch_size = 64
-epochs = 15
+epochs = 10
 feature_size = 119  # number of features
 seq_length = 500  # input length
 label_length = 100
@@ -31,7 +31,7 @@ target_num = df.columns.get_loc(label_target)
 
 '''Define the model'''
 if model_select == 'Transformer':
-    learning_rate = 0.00001
+    learning_rate = 0.000001
     model = Transformer(feature_size, num_layers=6, nhead=8, d_model=64,
                         dim_feedforward=64, enc_length=seq_length).to(device)
 elif model_select == 'LSTM':
