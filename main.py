@@ -9,7 +9,7 @@ from train import train_model, cross_train_model
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 cross_val = False  # whether to use cross validation
-model_select = 'LSTM'  # 'Transformer' or 'LSTM'
+model_select = 'Transformer'  # 'Transformer' or 'LSTM'
 
 # usable data:
 # 9636/10
@@ -17,17 +17,18 @@ model_select = 'LSTM'  # 'Transformer' or 'LSTM'
 """Load data"""
 data_path = "9636/9636_10.sqlite"
 df = readFile_sqlite(data_path, transformation='simple')
+# df = df.iloc[:1000]
 
 """Define hyperparams"""
 batch_size = 64
-epochs = 25
+epochs = 15
 feature_size = 119
 seq_length = 500
 label_length = 100
 label_target = 'Workload'
 target_num = df.columns.get_loc(label_target)
 if model_select == 'Transformer':
-    learning_rate = 0.001
+    learning_rate = 0.00001
     model = Transformer(feature_size, num_layers=6, nhead=8, d_model=32,
                         dim_feedforward=64, enc_length=seq_length).to(device)
 elif model_select == 'LSTM':
@@ -42,7 +43,7 @@ criterion = nn.L1Loss()
 
 """Train model"""
 train_dataloader, test_dataloader = wrangle(df, seq_length, label_length, batch_size,
-                                            label_target, cross_val=False, k_folds=5)
+                                            label_target, cross_val=cross_val, k_folds=5)
 
 if not cross_val:
     train_model(train_dataloader, test_dataloader, epochs, optimizer, criterion, model,

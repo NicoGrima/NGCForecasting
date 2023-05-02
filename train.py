@@ -81,7 +81,7 @@ def train_transfortmer(epochs, model, train_dataloader, test_dataloader, optimiz
               .format(epoch + 1, epochs, train_loss / len(train_dataloader), test_loss / len(test_dataloader)))
 
     # Save model
-    torch.save(model.state_dict(), 'cnn_lstm.pth')
+    torch.save(model.state_dict(), 'transformer.pth')
 
 
 def train_model(train_dataloader, test_dataloader, epochs, optimizer, criterion, model,

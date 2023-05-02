@@ -110,7 +110,7 @@ def get_metrics(test_dataloader, model, target_num, device, model_type: str):
                     outputs = model.forward(enc_input, dec_input, training=False)
                     dec_input = torch.cat((token_input, outputs.squeeze(2)), dim=1)
                 outputs = np.array(outputs.to('cpu'))
-                predicted_vals.append(outputs)
+                predicted_vals.append(np.squeeze(outputs))
 
     real_vals = np.vstack(real_vals)
     predicted_vals = np.vstack(predicted_vals)
@@ -147,7 +147,7 @@ def graph_predictions(df, seq_length, label_length, model, target_num, enc_lengt
             predicted = np.append(predicted, prediction[0][0])
             comp_times.append(end_time - start_time)
 
-    elif model_type == 'Transformers':
+    elif model_type == 'Transformer':
         for t in range(enc_length, df.shape[0] - label_length + 1, label_length):
             data = df[t - enc_length:t]
             norm_data, _, norm_mean, norm_std = normalize(data, target_name)
