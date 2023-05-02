@@ -14,13 +14,15 @@ def normalize(seq_data, label_target='target', label=0):
     sequence_mean = []
     sequence_std = []
     target_num = seq_data.columns.get_loc(label_target)
+    # Iterate through each feature and normalize them based on the feature values in the sequence
     for col in seq_data.columns:
         mean = seq_data[col].mean()
         sequence_mean.append(mean)
         std = seq_data[col].std()
         sequence_std.append(std)
-        norm_seq = (seq_data[col]-mean)/std
+        norm_seq = (seq_data[col]-mean)/std  # computation for z-score normalization
         sequence_norm.append(np.array(norm_seq))
+    # Finally normalize the label based on the mean and standard deviation of the target value computed previously
     label_norm = (label - sequence_mean[target_num]) / sequence_std[target_num]
     return np.array(sequence_norm), label_norm, sequence_mean, sequence_std
 
@@ -31,12 +33,15 @@ def create_sequences(input_data: pd.DataFrame, label_target: str, sequence_lengt
     data_size = len(input_data)
 
     for i in range(data_size - sequence_length - label_length):
-        sequence = input_data[i:i + sequence_length]  #.to_numpy()
+        # Define the range for the sequence
+        sequence = input_data[i:i + sequence_length]
 
         label_start = i + sequence_length
         label_end = label_start + label_length
+        # Define the label range and target features
         label = input_data[label_target][label_start:label_end]
 
+        # Normalize the sequences
         sequence_norm, label_norm, _, _ = normalize(sequence, label_target, label)
         sequences.append(sequence_norm)
         labels.append(label_norm)
@@ -62,10 +67,11 @@ def wrangle(df, seq_length, label_length, batch_size, label_target='Workload', c
     test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     if cross_val:
-        # Perform k-fold cross-validation
+        # If k-fold cross-validation is chosen
         kfold = KFold(n_splits=k_folds, shuffle=True)
         fold_dataloaders = []
 
+        # Iterate through each of the k-subsets and create a DataLoader for each
         for train_indices, val_indices in kfold.split(train_dataset):
             train_subset = Subset(train_dataset, train_indices)
             val_subset = Subset(train_dataset, val_indices)
@@ -76,6 +82,7 @@ def wrangle(df, seq_length, label_length, batch_size, label_target='Workload', c
             fold_dataloaders.append((train_dataloader, val_dataloader))
 
         return fold_dataloaders, test_dataloader
+
     else:
         train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         return train_dataloader, test_dataloader
@@ -85,15 +92,19 @@ def get_metrics(test_dataloader, model, target_num, device, model_type: str):
     real_vals = []
     predicted_vals = []
 
+    # Get predicted outcomes for every testing sequence and compare results to the labels
     with torch.no_grad():
         if model_type == 'LSTM':
+            # Iterate through all testing sequences
             for i, (inputs, labels) in enumerate(test_dataloader):
                 inputs = inputs.to(device)
                 labels = np.array(labels)
                 real_vals.append(labels)
 
+                # Get predicted outputs and store them for comparison with real labels
                 outputs = np.array(model.forward(inputs).to('cpu'))
                 predicted_vals.append(outputs)
+
         elif model_type == 'Transformer':
             for i, (enc_input, labels) in enumerate(test_dataloader):
                 enc_input = enc_input.to(device)
@@ -112,6 +123,7 @@ def get_metrics(test_dataloader, model, target_num, device, model_type: str):
                 outputs = np.array(outputs.to('cpu'))
                 predicted_vals.append(np.squeeze(outputs))
 
+    # Transform labels and predicted outcomes into desired data format
     real_vals = np.vstack(real_vals)
     predicted_vals = np.vstack(predicted_vals)
     print(real_vals.shape)
@@ -130,56 +142,62 @@ def get_metrics(test_dataloader, model, target_num, device, model_type: str):
 
 
 def graph_predictions(df, seq_length, label_length, model, target_num, enc_length, device, model_type: str):
+    # Initialize predicted with the first sequence of length = seq_length (input length), since we
+    # cannot predict these values
     predicted = df.iloc[:, target_num][0:seq_length].to_numpy()
     target_name = df.columns[target_num]
     comp_times = []
 
     if model_type == 'LSTM':
         for t in range(seq_length, df.shape[0] - label_length + 1, label_length):
-            data = df[t - seq_length:t]
+            data = df[t - seq_length:t]  # input data
+            # Normalize the data and store the mean and standard deviation
             norm_data, _, norm_mean, norm_std = normalize(data, target_name)
-            norm_tensor = torch.tensor([norm_data], dtype=torch.float32).to(device)
-            start_time = time.time()  # Start time
-            prediction = model.forward(norm_tensor).cpu().detach().numpy()
-            prediction = list(map(lambda x: (prediction * norm_std[target_num] + norm_mean[target_num]),
-                                  prediction))
-            end_time = time.time()  # End time
+            norm_tensor = torch.tensor([norm_data], dtype=torch.float32).to(device)  # normalized input
+            start_time = time.time()  # start time
+            prediction = model.forward(norm_tensor).cpu().detach().numpy()  # forecasted target values
+            # Inverse normalization of predicted values
+            prediction = list(map(lambda x: (prediction * norm_std[target_num] + norm_mean[target_num]), prediction))
+            end_time = time.time()  # end time
             predicted = np.append(predicted, prediction[0][0])
-            comp_times.append(end_time - start_time)
+            comp_times.append(end_time - start_time)  # store computation time
 
     elif model_type == 'Transformer':
         for t in range(enc_length, df.shape[0] - label_length + 1, label_length):
-            data = df[t - enc_length:t]
+            data = df[t - enc_length:t]  # input data
+            # Normalize the data and store the mean and standard deviation
             norm_data, _, norm_mean, norm_std = normalize(data, target_name)
-            norm_tensor = torch.tensor([norm_data], dtype=torch.float32)
-            token_tensor = norm_tensor[:, target_num, -1].unsqueeze(-1).to(device)
+            norm_tensor = torch.tensor([norm_data], dtype=torch.float32)  # normalized input
+            token_tensor = norm_tensor[:, target_num, -1].unsqueeze(-1).to(device)  # decoder input
             dec_tensor = token_tensor
             input_tensor = norm_tensor.to(device)
-            start_time = time.time()  # Start time
+            start_time = time.time()  # start time
             prediction = []
             output = None
+            # Iterate through model to predict t+1 and progressively update the outcome and decoder input
+            # with predictions
             for i in range(label_length):
                 output = model.forward(input_tensor, dec_tensor, training=False)
-                dec_tensor = torch.cat((token_tensor, output.squeeze(2)), dim=1)
-            prediction = output.cpu().detach().numpy()
+                dec_tensor = torch.cat((token_tensor, output.squeeze(2)), dim=1)  # update decoder input
+            prediction = output.cpu().detach().numpy()  # forecasted target values
+            # Inverse normalization of predicted values
             prediction = list(map(lambda x: (prediction * norm_std[target_num] + norm_mean[target_num]), prediction))
-            end_time = time.time()  # End time
+            end_time = time.time()  # end time
             predicted = np.append(predicted, prediction[0][0])
-            comp_times.append(end_time - start_time)
+            comp_times.append(end_time - start_time)  # store computation time
 
-    # account for sequence length mismatch with total data size
+    # Account for sequence length mismatch with total data size
     leftover = (df.shape[0] % label_length) * -1 if df.shape[0] % label_length != 0 else df.shape[0]
 
     # Computation time average
     print('Time of computation for each prediction is: ' + str(np.mean(comp_times)))
 
     """Plot predicted vs real"""
-    days = range(len(predicted))
-    real = df.iloc[:, target_num].to_numpy()[:leftover]
+    time_range = range(len(predicted))
+    real = df.iloc[:, target_num].to_numpy()[:leftover]  # trim real values if needed
 
-    # Plot the data
-    plt.plot(days, real, label='True')
-    plt.plot(days, predicted, label='Predicted')
+    plt.plot(time_range, real, label='True')
+    plt.plot(time_range, predicted, label='Predicted')
     plt.xlabel('Time')
     plt.ylabel('Workload')
     plt.title('Forecasting Cognitive Workload')
