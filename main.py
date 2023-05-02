@@ -18,7 +18,7 @@ model_select = 'LSTM'  # 'Transformer' or 'LSTM'
 data_path = "9636/9636_10.sqlite"
 # Read and manipulate data from sqlite
 df = readFile_sqlite(data_path, transformation='simple')
-# df = df.iloc[:1000]
+df = df.iloc[:1000]
 
 """Define hyperparams"""
 batch_size = 64

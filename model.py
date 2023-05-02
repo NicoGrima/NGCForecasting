@@ -46,17 +46,23 @@ class CNN_LSTM(nn.Module):
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model, dropout=0.1, max_len=10):
         super(PositionalEncoding, self).__init__()
+        # Create a dropout layer
         self.dropout = nn.Dropout(p=dropout)
 
-        pe = torch.zeros(max_len, d_model)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        pe = torch.zeros(max_len, d_model)  # positional encoding matrix initialization
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)  # position tensor [0, 1, 2, ..., max_len]
+
+        # Compute the divisor terms for the sine and cosine functions
         div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-torch.log(torch.tensor(10000.0)) / d_model))
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
+        pe[:, 0::2] = torch.sin(position * div_term)  # sine term for even indices
+        pe[:, 1::2] = torch.cos(position * div_term)  # cosine term for odd indices
         pe = pe.unsqueeze(0).transpose(0, 1)
+
+        # Register the positional encoding matrix as a buffer to the module
         self.register_buffer('pe', pe)
 
     def forward(self, x):
+        # Add positional encoder to input
         x = x + self.pe[:x.size(0), :]
         return self.dropout(x)
 
@@ -66,46 +72,56 @@ class Transformer(nn.Module):
     def __init__(self, feature_size, num_layers, nhead, d_model, dim_feedforward, enc_length):
         super(Transformer, self).__init__()
 
+        # Encoder layer
         self.encoder_layer = nn.TransformerEncoderLayer(d_model, nhead, dim_feedforward)
         self.encoder = nn.TransformerEncoder(self.encoder_layer, num_layers)
 
+        # Decoder layer
         self.decoder_layer = nn.TransformerDecoderLayer(d_model, nhead, dim_feedforward)
         self.decoder = nn.TransformerDecoder(self.decoder_layer, num_layers)
 
+        # Declares all masks
         self.src_mask = None
         self.trg_mask = None
         self.memory_mask = None
 
+        # Value embedding through convolutional layers
         self.src_embedding = nn.Conv1d(feature_size, d_model, kernel_size=1, padding='same')
         self.trg_embedding = nn.Conv1d(1, d_model, kernel_size=1, padding='same')
 
+        # Positional encoding
         self.positional_encoding = PositionalEncoding(d_model, 0.1, enc_length)
 
+        # Final linear layer
         self.linear = nn.Linear(d_model, 1)
 
     def generate_square_subsequent_mask(self, sz):
+        # Masks the decoder input to prevent decoder layer from accessing future values before making predictions
         mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
         mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
         return mask
 
     def forward(self, src, trg, training=False):
+        # Determines whether we need to apply masks to the decoder input
         if training:
             self.trg_mask = self.generate_square_subsequent_mask(trg.shape[1]).to(device)
         else:
             self.trg_mask = None
 
+        # Embed and encode encoder input
         src = self.src_embedding(src)
         src = src.permute(2, 0, 1)
         src = self.positional_encoding(src)
 
+        # Embed and encode decoder input
         trg = trg.unsqueeze(1)
         trg = self.trg_embedding(trg)
         trg = trg.permute(2, 0, 1)
         trg = self.positional_encoding(trg)
 
-        memory = self.encoder(src, mask=self.src_mask)
-        output = self.decoder(trg, memory, tgt_mask=self.trg_mask, memory_mask=self.memory_mask)
+        memory = self.encoder(src, mask=self.src_mask)  # encoder
+        output = self.decoder(trg, memory, tgt_mask=self.trg_mask, memory_mask=self.memory_mask)  # decoder
         output = output.permute(1, 0, 2)
-        output = self.linear(output)
+        output = self.linear(output)  # linear layer
 
         return output
