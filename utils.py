@@ -21,7 +21,7 @@ def normalize(seq_data, label_target='target', label=0):
     target_num = seq_data.columns.get_loc(label_target)
     label_norm = (label - sequence_mean[target_num]) / sequence_std[target_num]
 
-    return sequence_norm.values, label_norm, sequence_mean.values, sequence_std.values
+    return sequence_norm.values.transpose(), label_norm, sequence_mean.values, sequence_std.values
 
 
 def create_sequences(input_data: pd.DataFrame, label_target: str, sequence_length=10, label_length=1):
@@ -39,7 +39,7 @@ def create_sequences(input_data: pd.DataFrame, label_target: str, sequence_lengt
         label = input_data[label_target][label_start:label_end]
 
         # Normalize the sequences
-        sequence_norm, label_norm, _, _ = normalize(sequence, label_target, label)
+        sequence_norm, label_norm, i, o = normalize(sequence, label_target, label)
         sequences.append(sequence_norm)
         labels.append(label_norm)
 
