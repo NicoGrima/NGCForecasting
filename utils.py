@@ -1,6 +1,17 @@
 import torch
 
 
+def normalize(seq_data):
+    # Compute mean and standard deviation for each column
+    sequence_mean = seq_data.mean()
+    sequence_std = seq_data.std()
+
+    # Normalize the sequence data using vectorized operations
+    sequence_norm = (seq_data - sequence_mean) / sequence_std
+
+    return sequence_norm, sequence_mean, sequence_std
+
+
 def forecast(model, input_tensor, token_tensor, model_to_load):
     output = None
     if model_to_load == 'lstm':

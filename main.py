@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from utils import forecast
+from utils import forecast, normalize
 from model import CNN_LSTM, Transformer
 
 
@@ -21,12 +21,16 @@ model = torch.load(filename).to(device)
 target_num = 0  # whichever feature/column we want to predict
 features = 119
 input_length = 500
-input_tensor = torch.randn(1, features, input_length).to(device)
+# input_tensor = torch.randn(1, featurs, input_length)
+input_ndarray = np.random.normal(loc=50.0, scale=10.0, size=(1, features, input_length)).astype(np.float32)
+norm_ndarray, seq_mean, seq_std = normalize(input_ndarray)
+input_tensor = torch.from_numpy(norm_ndarray).to(device)
 token_tensor = input_tensor[:, target_num, -1:].to(device)  # last element of target value in input tensor
 
 '''Predict future data'''
-prediction = forecast(model, input_tensor, token_tensor, model_to_load)
-prediction = prediction.detach().to('cpu').numpy().squeeze()
+norm_prediction = forecast(model, input_tensor, token_tensor, model_to_load)
+norm_prediction = norm_prediction.detach().to('cpu').numpy().squeeze()
+prediction = (norm_prediction * seq_std) + seq_mean
 # Now transform continuous estimate to ordinal classification
 bins = [0, 33, 67, 100]  # define the bin edges
 labels = ['underload', 'optimal', 'overload']  # define the corresponding labels for the bins
