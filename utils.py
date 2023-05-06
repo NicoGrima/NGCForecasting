@@ -10,21 +10,18 @@ import time
 
 
 def normalize(seq_data, label_target='target', label=0):
-    sequence_norm = []
-    sequence_mean = []
-    sequence_std = []
+    # Compute mean and standard deviation for each column
+    sequence_mean = seq_data.mean()
+    sequence_std = seq_data.std()
+
+    # Normalize the sequence data using vectorized operations
+    sequence_norm = (seq_data - sequence_mean) / sequence_std
+
+    # Normalize the label based on the mean and standard deviation of the target value computed previously
     target_num = seq_data.columns.get_loc(label_target)
-    # Iterate through each feature and normalize them based on the feature values in the sequence
-    for col in seq_data.columns:
-        mean = seq_data[col].mean()
-        sequence_mean.append(mean)
-        std = seq_data[col].std()
-        sequence_std.append(std)
-        norm_seq = (seq_data[col]-mean)/std  # computation for z-score normalization
-        sequence_norm.append(np.array(norm_seq))
-    # Finally normalize the label based on the mean and standard deviation of the target value computed previously
     label_norm = (label - sequence_mean[target_num]) / sequence_std[target_num]
-    return np.array(sequence_norm), label_norm, sequence_mean, sequence_std
+
+    return sequence_norm.values, label_norm, sequence_mean.values, sequence_std.values
 
 
 def create_sequences(input_data: pd.DataFrame, label_target: str, sequence_length=10, label_length=1):

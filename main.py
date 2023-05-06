@@ -21,7 +21,7 @@ df = readFile_sqlite(data_path, transformation='simple')
 
 """Define parameters"""
 batch_size = 64
-epochs = 10
+epochs = 15
 feature_size = 119  # number of features
 seq_length = 500  # input length
 label_length = 100

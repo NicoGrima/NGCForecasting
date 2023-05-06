@@ -3,6 +3,7 @@ import sqlite3
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 def continuous_simple(df):
     # Check if too many Nan values in workload confidence
     mask = df['workload_confidence'].isnull()
