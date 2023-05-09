@@ -18,7 +18,7 @@ model = torch.load(filename, map_location=torch.device('cpu'))
 # Right now we get pseudo data here
 target_num = 0  # whichever feature/column we want to predict
 features = 119
-input_length = 700
+input_length = 500
 # input_tensor = torch.randn(1, featurs, input_length)
 input_ndarray = np.random.normal(loc=50.0, scale=10.0, size=(1, features, input_length)).astype(np.float32)
 norm_ndarray, seq_mean, seq_std = normalize(input_ndarray)
