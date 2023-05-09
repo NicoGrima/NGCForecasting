@@ -1,15 +1,21 @@
 import torch
+import numpy as np
 
 
-def normalize(seq_data):
-    # Compute mean and standard deviation for each column
-    sequence_mean = seq_data.mean()
-    sequence_std = seq_data.std()
-
-    # Normalize the sequence data using vectorized operations
-    sequence_norm = (seq_data - sequence_mean) / sequence_std
-
-    return sequence_norm, sequence_mean, sequence_std
+def normalize(seq_data, target_num=0):
+    seq_data = seq_data.squeeze()
+    sequence_norm = []
+    sequence_mean = []
+    sequence_std = []
+    # Iterate through each feature and normalize them based on the feature values in the sequence
+    for col in seq_data:
+        mean = np.mean(col)
+        sequence_mean.append(mean)
+        std = np.std(col)
+        sequence_std.append(std)
+        norm_seq = (col-mean)/std  # computation for z-score normalization
+        sequence_norm.append(np.array(norm_seq))
+    return np.expand_dims(np.array(sequence_norm), axis=0), np.array(sequence_mean), np.array(sequence_std)
 
 
 def forecast(model, input_tensor, token_tensor, model_to_load):
