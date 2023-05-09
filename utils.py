@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 
-def normalize(seq_data, target_num=0):
+def normalize(seq_data):
     seq_data = seq_data.squeeze()
     sequence_norm = []
     sequence_mean = []
