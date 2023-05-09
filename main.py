@@ -21,7 +21,7 @@ features = 119
 input_length = 700
 # input_tensor = torch.randn(1, featurs, input_length)
 input_ndarray = np.random.normal(loc=50.0, scale=10.0, size=(1, features, input_length)).astype(np.float32)
-norm_ndarray, seq_mean, seq_std = normalize(input_ndarray, target_num)
+norm_ndarray, seq_mean, seq_std = normalize(input_ndarray)
 input_tensor = torch.from_numpy(norm_ndarray)
 token_tensor = input_tensor[:, target_num, -1:]  # last element of target value in input tensor
 
