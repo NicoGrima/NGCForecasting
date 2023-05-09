@@ -1,65 +1,36 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from pkl_reader import readFile_sqlite
+import numpy as np
+from utils import forecast, normalize
 from model import CNN_LSTM, Transformer
-from utils import wrangle, graph_predictions, get_metrics
-from train import train_model, cross_train_model
 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-cross_val = False  # whether to use cross validation
-model_select = 'LSTM'  # 'Transformer' or 'LSTM'
+'''Load the model parameters'''
+# Load either the 'lstm' or 'transformer' model
+model_to_load = 'transformer'
 
-# usable data:
-# 9636/10
-# 8101/31
-"""Load data"""
-data_path = "9636/9636_10.sqlite"
-# Read and manipulate data from sqlite
-df = readFile_sqlite(data_path, transformation='simple')
+if model_to_load != 'lstm' and model_to_load != 'transformer':
+    raise ValueError('Unavailable model selection. Available options: "lstm" or "transformer"')
 
-"""Define parameters"""
-batch_size = 64
-epochs = 15
-feature_size = 119  # number of features
-seq_length = 500  # input length
-label_length = 100
-# Target we are looking to forecast (in the future we can modify the models to predict multiple)
-label_target = 'Workload'
-target_num = df.columns.get_loc(label_target)
+filename = model_to_load + '.pth'
+model = torch.load(filename, map_location=torch.device('cpu'))
 
-'''Define the model'''
-if model_select == 'Transformer':
-    learning_rate = 0.000001
-    model = Transformer(feature_size, num_layers=6, nhead=8, d_model=64,
-                        dim_feedforward=64, enc_length=seq_length).to(device)
-elif model_select == 'LSTM':
-    learning_rate = 0.001
-    model = CNN_LSTM(feature_size, label_length, hidden_dim=64, out_channels=32,
-                     num_layers=1).to(device)
-else:
-    raise ValueError('Model selection not available. Possible selections: "LSTM" or "Transformer"')
+'''Get your data'''
+# Right now we get pseudo data here
+target_num = 0  # whichever feature/column we want to predict
+features = 119
+input_length = 500
+# input_tensor = torch.randn(1, featurs, input_length)
+input_ndarray = np.random.normal(loc=50.0, scale=10.0, size=(1, features, input_length)).astype(np.float32)
+norm_ndarray, seq_mean, seq_std = normalize(input_ndarray, target_num)
+input_tensor = torch.from_numpy(norm_ndarray)
+token_tensor = input_tensor[:, target_num, -1:]  # last element of target value in input tensor
 
-"""Define optimizer and loss func"""
-# Define optimizer as ADAM
-optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-# Define loss function as MAE
-criterion = nn.L1Loss()
-
-"""Train model"""
-# Create DataLoaders for training
-train_dataloader, test_dataloader = wrangle(df, seq_length, label_length, batch_size,
-                                            label_target, cross_val=cross_val, k_folds=5)
-
-# Train the model with either train-test split or k-folds cross-validation
-if not cross_val:
-    train_model(train_dataloader, test_dataloader, epochs, optimizer, criterion, model,
-                target_num, device, model_select)
-else:
-    cross_train_model(train_dataloader, epochs, optimizer, criterion, model, target_num,
-                      device, model_select)
-
-"""Get prediction graph and metrics"""
-graph_predictions(df, seq_length, label_length, model, target_num, seq_length, device, model_select)
-get_metrics(test_dataloader, model, target_num, device, model_select)
+'''Predict future data'''
+norm_prediction = forecast(model, input_tensor, token_tensor, model_to_load)
+norm_prediction = norm_prediction.detach().to('cpu').numpy().squeeze()
+prediction = (norm_prediction * seq_std[target_num]) + seq_mean[target_num]
+# Now transform continuous estimate to ordinal classification
+bins = [0, 33, 67, 100]  # define the bin edges
+labels = ['underload', 'optimal', 'overload']  # define the corresponding labels for the bins
+# bin the values and map the bin indices to the labels
+classified_prediction = np.array(labels)[np.digitize(prediction, bins) - 1]
