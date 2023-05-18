@@ -46,8 +46,34 @@ def create_sequences(input_data: pd.DataFrame, label_target: str, sequence_lengt
     return np.array(sequences), np.array(labels)
 
 
-def wrangle(df, seq_length, label_length, batch_size, label_target='Workload', cross_val='False', k_folds=5):
-    input_data, labels = create_sequences(df, label_target, seq_length, label_length)
+def loadify(train_array, label_array, batch_size):
+    # print(np.any(np.isnan(train_array)))
+    # print(np.any(np.isnan(label_array)))
+
+    train_data, test_data, train_labels, test_labels = train_test_split(train_array, label_array, test_size=0.2)
+
+    # Convert train and test data and labels to PyTorch tensors
+    train_data = torch.tensor(train_data, dtype=torch.float32)
+    train_labels = torch.tensor(train_labels, dtype=torch.float32)
+    test_data = torch.tensor(test_data, dtype=torch.float32)
+    test_labels = torch.tensor(test_labels, dtype=torch.float32)
+
+    # Create PyTorch DataLoader objects for train and test data
+    train_dataset = TensorDataset(train_data, train_labels)
+    test_dataset = TensorDataset(test_data, test_labels)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+    return train_dataloader, test_dataloader
+
+
+def wrangle(df, seq_length, label_length, batch_size, label_target='Workload', cross_val='False', k_folds=5,
+            load=False):
+    if not load:
+        input_data, labels = create_sequences(df, label_target, seq_length, label_length)
+    # else:
+    #     input_data = train_array
+    #     labels = label_array
 
     # Train-test split
     train_data, test_data, train_labels, test_labels = train_test_split(input_data, labels, test_size=0.2)
@@ -127,6 +153,9 @@ def get_metrics(test_dataloader, model, target_num, device, model_type: str):
 
     # MAE for predictions
     mae = mean_absolute_error(predicted_vals, real_vals)
+    bv = np.mean(np.abs(predicted_vals - real_vals), axis=1)
+    hw = np.mean(bv)
+
     print('MAE for entire predictions of the time series is: ' + str(mae))
 
     # MSE for predictions

@@ -89,7 +89,7 @@ def readFile_sqlite(file_name: str, transformation: str, graph_comparison=False)
 
     # Query the database and fetch the results into a Pandas dataframe
     df_classified = pd.read_sql_query("SELECT * FROM ocarina_biomeasures_classified_hemodynamics", conn)
-    df_light = pd.read_sql_query("SELECT * FROM ocarina_biomeasures_light_intensities", conn)
+    # df_light = pd.read_sql_query("SELECT * FROM ocarina_biomeasures_light_intensities", conn)
     df_hemodynamics = pd.read_sql_query("SELECT * FROM ocarina_biomeasures_processed_hemodynamics", conn)
 
     # any_null_ = df_light.isna().any(axis=1)
@@ -99,7 +99,7 @@ def readFile_sqlite(file_name: str, transformation: str, graph_comparison=False)
 
     # Trim data
     df_classified = df_classified.iloc[:, 3:]
-    df_light = df_light.iloc[:, :-3]
+    # df_light = df_light.iloc[:, :-3]
     df_hemodynamics = df_hemodynamics.iloc[:, 3:]
 
     # Turn workload classification into a continuous variable (simple vs complex will determine the
@@ -110,14 +110,14 @@ def readFile_sqlite(file_name: str, transformation: str, graph_comparison=False)
         if graph_comparison:
             graph_figures(df_classified, df_simple_linear)
         # Concatenate the data with the classification
-        df = pd.concat([pd.DataFrame(df_simple_linear, columns=['Workload']), df_light, df_hemodynamics], axis=1)
+        df = pd.concat([pd.DataFrame(df_simple_linear, columns=['Workload']), df_hemodynamics], axis=1)
         df = df.drop(indices)
 
     elif transformation == 'complex':
         df_complex_linear, indices = continuous_complex(df_classified)
         if graph_comparison:
             graph_figures(df_classified, df_complex_linear)
-        df = pd.concat([pd.DataFrame(df_complex_linear, columns=['Workload']), df_light, df_hemodynamics], axis=1)
+        df = pd.concat([pd.DataFrame(df_complex_linear, columns=['Workload']), df_hemodynamics], axis=1)
         df = df.drop(indices)
 
     else:

@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 
 def train_lstm(epochs, model, train_dataloader, val_dataloader, optimizer, criterion, device):
@@ -15,6 +16,8 @@ def train_lstm(epochs, model, train_dataloader, val_dataloader, optimizer, crite
             outputs = model.forward(inputs)
             loss = criterion(outputs, labels)
 
+            if (epoch == epochs-1 or epoch == 1) and i == 0:
+                pass
             loss.backward()
             optimizer.step()
 
