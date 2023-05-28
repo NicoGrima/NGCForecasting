@@ -11,17 +11,17 @@ import time
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # if we want to train the model (keep as true unless you are using a saved one and do not want to train it further)
-train_req = False
+train_req = True
 cross_val = False  # whether to use cross validation
 single_file_load = True  # whether to load just one file
-saved_model = True  # whether the model we are using has already been created
+saved_model = False  # whether the model we are using has already been created
 model_select = 'LSTM'  # 'Transformer' or 'LSTM'
 
 """Define parameters"""
 batch_size = 64
 epochs = 5
 feature_size = 65  # number of features
-seq_length = 500  # input length
+seq_length = 700  # input length
 label_length = 100
 # Target we are looking to forecast (in the future we can modify the models to predict multiple)
 label_target = 'Workload'
@@ -55,7 +55,7 @@ criterion = nn.L1Loss()
 # 8101/31
 """Load data"""
 if single_file_load:
-    data_path = "8101/8101_31.sqlite"  #  "9636/9636_10.sqlite"
+    data_path = "9636/9636_10.sqlite"  #  "9636/9636_10.sqlite"
     # Read and manipulate data from sqlite
     df = readFile_sqlite(data_path, transformation='simple')
     # list of x most important features
@@ -72,18 +72,19 @@ else:
     train_dataloader, test_dataloader = loadify(train_array, label_array, batch_size)
 
 """Train model"""
+save_file = model_select + '_mock' + '.pth'  # model name + additional defining info + extension
 # Train the model with either train-test split or k-folds cross-validation
-start_time = time.time()
 if train_req:
+    start_time = time.time()
     if not cross_val:
         train_model(train_dataloader, test_dataloader, epochs, optimizer, criterion, model,
-                    target_num, device, model_select)
+                    target_num, save_file, device, model_select)
     else:
         cross_train_model(train_dataloader, epochs, optimizer, criterion, model, target_num,
-                          device, model_select)
-end_time = time.time()
-train_time = end_time-start_time
-print('Computation time for entire training: ' + str(train_time))
+                          save_file, device, model_select)
+    end_time = time.time()
+    train_time = end_time - start_time
+    print('Computation time for entire training: ' + str(train_time))
 
 """Get prediction graph and metrics"""
 if single_file_load:

@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 
-def train_lstm(epochs, model, train_dataloader, val_dataloader, optimizer, criterion, device):
+def train_lstm(epochs, model, train_dataloader, val_dataloader, optimizer, criterion, save_file, device):
     for epoch in range(epochs):
         train_loss = 0.0
         model.train()
@@ -39,10 +39,11 @@ def train_lstm(epochs, model, train_dataloader, val_dataloader, optimizer, crite
         print('Epoch [{}/{}], Train Loss: {:.4f}, Validation Loss: {:.4f}'
               .format(epoch + 1, epochs, train_loss / len(train_dataloader), test_loss / len(val_dataloader)))
     # Save model
-    torch.save(model.state_dict(), 'cnn_lstm.pth')
+    torch.save(model.state_dict(), save_file)
 
 
-def train_transfortmer(epochs, model, train_dataloader, test_dataloader, optimizer, criterion, target_num, device):
+def train_transfortmer(epochs, model, train_dataloader, test_dataloader, optimizer, criterion, target_num, save_file,
+                       device):
     for epoch in range(epochs):
         train_loss = 0.0
         model.train()
@@ -90,27 +91,28 @@ def train_transfortmer(epochs, model, train_dataloader, test_dataloader, optimiz
         print('Epoch [{}/{}], Train Loss: {:.4f}, Test Loss: {:.4f}'
               .format(epoch + 1, epochs, train_loss / len(train_dataloader), test_loss / len(test_dataloader)))
     # Save model
-    torch.save(model.state_dict(), 'transformer.pth')
+    torch.save(model.state_dict(), save_file)
 
 
 def train_model(train_dataloader, test_dataloader, epochs, optimizer, criterion, model,
-                target_num, device, model_type: str):
+                target_num, save_file, device, model_type: str):
     if model_type == 'LSTM':
-        train_lstm(epochs, model, train_dataloader, test_dataloader, optimizer, criterion, device)
+        train_lstm(epochs, model, train_dataloader, test_dataloader, optimizer, criterion, save_file, device)
     elif model_type == 'Transformer':
-        train_transfortmer(epochs, model, train_dataloader, test_dataloader, optimizer, criterion, target_num, device)
+        train_transfortmer(epochs, model, train_dataloader, test_dataloader, optimizer, criterion, target_num,
+                           save_file, device)
     else:
         raise ValueError('Model type not available. Possible selections: "LSTM" or "Transformer"')
 
 
-def cross_train_model(fold_dataloaders, epochs, optimizer, criterion, model, target_num,
+def cross_train_model(fold_dataloaders, epochs, optimizer, criterion, model, target_num, save_file,
                       device, model_type: str):
     for fold, (train_dataloader, val_dataloader) in enumerate(fold_dataloaders):
         print(f'FOLD {fold + 1}')
         if model_type == 'LSTM':
-            train_lstm(epochs, model, train_dataloader, val_dataloader, optimizer, criterion, device)
+            train_lstm(epochs, model, train_dataloader, val_dataloader, optimizer, criterion, save_file, device)
         elif model_type == 'Transformer':
             train_transfortmer(epochs, model, train_dataloader, val_dataloader, optimizer, criterion, target_num,
-                               device)
+                               save_file, device)
         else:
             raise ValueError('Model type not available. Possible selections: "LSTM" or "Transformer"')
