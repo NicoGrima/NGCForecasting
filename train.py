@@ -1,5 +1,4 @@
 import torch
-import numpy as np
 
 
 def train_lstm(epochs, model, train_dataloader, val_dataloader, optimizer, criterion, save_file, device):
@@ -94,8 +93,8 @@ def train_transfortmer(epochs, model, train_dataloader, test_dataloader, optimiz
     torch.save(model.state_dict(), save_file)
 
 
-def train_model(train_dataloader, test_dataloader, epochs, optimizer, criterion, model,
-                target_num, save_file, device, model_type: str):
+def train_model(train_dataloader, test_dataloader, epochs, optimizer, criterion, model, target_num,
+                save_file, device, model_type: str):
     if model_type == 'LSTM':
         train_lstm(epochs, model, train_dataloader, test_dataloader, optimizer, criterion, save_file, device)
     elif model_type == 'Transformer':

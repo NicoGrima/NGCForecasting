@@ -102,6 +102,9 @@ def readFile_sqlite(file_name: str, transformation: str, graph_comparison=False)
     # df_light = df_light.iloc[:, :-3]
     df_hemodynamics = df_hemodynamics.iloc[:, 3:]
 
+    df_hemodynamics = df_hemodynamics.drop(df_hemodynamics.index[-1])
+    # print(df_hemodynamics.isna().values.any())
+
     # Turn workload classification into a continuous variable (simple vs complex will determine the
     # type of linear transformation)
     if transformation == 'simple':
@@ -111,14 +114,14 @@ def readFile_sqlite(file_name: str, transformation: str, graph_comparison=False)
             graph_figures(df_classified, df_simple_linear)
         # Concatenate the data with the classification
         df = pd.concat([pd.DataFrame(df_simple_linear, columns=['Workload']), df_hemodynamics], axis=1)
-        df = df.drop(indices)
+        # df = df.drop(indices)
 
     elif transformation == 'complex':
         df_complex_linear, indices = continuous_complex(df_classified)
         if graph_comparison:
             graph_figures(df_classified, df_complex_linear)
         df = pd.concat([pd.DataFrame(df_complex_linear, columns=['Workload']), df_hemodynamics], axis=1)
-        df = df.drop(indices)
+        # df = df.drop(indices)
 
     else:
         raise ValueError('Not an acceptable transformation. Supported transformations: "simple" or "complex"')

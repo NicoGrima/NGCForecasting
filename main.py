@@ -15,13 +15,13 @@ train_req = True
 cross_val = False  # whether to use cross validation
 single_file_load = True  # whether to load just one file
 saved_model = False  # whether the model we are using has already been created
-model_select = 'LSTM'  # 'Transformer' or 'LSTM'
+model_select = 'Transformer'  # 'Transformer' or 'LSTM'
 
 """Define parameters"""
 batch_size = 64
 epochs = 5
 feature_size = 65  # number of features
-seq_length = 700  # input length
+seq_length = 500  # input length
 label_length = 100
 # Target we are looking to forecast (in the future we can modify the models to predict multiple)
 label_target = 'Workload'
@@ -31,12 +31,20 @@ learning_rate = 0.0001  # general learning rate
 '''Define the model'''
 if model_select == 'Transformer':
     learning_rate = 0.000001  # learning rate for specific model
-    model = Transformer(feature_size, num_layers=6, nhead=8, d_model=64,
-                        dim_feedforward=64, enc_length=seq_length).to(device)
+    block_layers = 6
+    nhead = 8
+    embed_dim = 32
+    dim_feedforward = 64
+    dropout = 0.1
+    model = Transformer(feature_size, num_layers=block_layers, nhead=nhead, d_model=embed_dim,
+                        dim_feedforward=dim_feedforward, enc_length=seq_length, dropout=dropout).to(device)
 elif model_select == 'LSTM':
     learning_rate = 0.001  # learning rate for specific model
-    model = CNN_LSTM(feature_size, label_length, hidden_dim=64, out_channels=32,
-                     num_layers=1).to(device)
+    lstm_hidden_dim = 64
+    cnn_out_channels = 32
+    lstm_layers = 1
+    model = CNN_LSTM(feature_size, label_length, hidden_dim=lstm_hidden_dim, out_channels=cnn_out_channels,
+                     num_layers=lstm_layers).to(device)
 else:
     raise ValueError('Model selection not available. Possible selections: "LSTM" or "Transformer"')
 
@@ -55,7 +63,7 @@ criterion = nn.L1Loss()
 # 8101/31
 """Load data"""
 if single_file_load:
-    data_path = "9636/9636_10.sqlite"  #  "9636/9636_10.sqlite"
+    data_path = "9636/9636_10.sqlite"  # "9636/9636_10.sqlite"
     # Read and manipulate data from sqlite
     df = readFile_sqlite(data_path, transformation='simple')
     # list of x most important features
@@ -72,7 +80,7 @@ else:
     train_dataloader, test_dataloader = loadify(train_array, label_array, batch_size)
 
 """Train model"""
-save_file = model_select + '_mock' + '.pth'  # model name + additional defining info + extension
+save_file = model_select + '/' + model_select + '_mock' + '.pth'  # model name + additional defining info + extension
 # Train the model with either train-test split or k-folds cross-validation
 if train_req:
     start_time = time.time()
