@@ -68,7 +68,7 @@ def train_transfortmer(epochs, model, train_dataloader, test_dataloader, optimiz
             optimizer.step()
 
             train_loss += loss.item()
-        scheduler.step()
+        # scheduler.step()
 
         test_loss = 0.0
         model.eval()
@@ -120,7 +120,7 @@ def train_model(train_dataloader, test_dataloader, epochs, optimizer, criterion,
 
 
 def cross_train_model(fold_dataloaders, epochs, optimizer, criterion, model, target_num, save_file, step,
-                      device, model_type: str, neptune):
+                      device, model_type: str, neptune, scheduler):
     for fold, (train_dataloader, val_dataloader) in enumerate(fold_dataloaders):
         print(f'FOLD {fold + 1}')
         if model_type == 'LSTM' or model_type == 'vLSTM':
@@ -128,6 +128,6 @@ def cross_train_model(fold_dataloaders, epochs, optimizer, criterion, model, tar
                        neptune)
         elif model_type == 'Transformer':
             train_transfortmer(epochs, model, train_dataloader, val_dataloader, optimizer, criterion, target_num,
-                               save_file, step, device, neptune)
+                               save_file, step, device, neptune, scheduler)
         else:
             raise ValueError('Model type not available. Possible selections: "LSTM", "Transformer", or "vLSTM"')

@@ -3,6 +3,9 @@ import pandas as pd
 from torch.utils.data import TensorDataset, DataLoader, Subset
 from sklearn.model_selection import train_test_split, KFold
 import torch
+import random
+from statsmodels.tsa.stattools import adfuller
+from statsmodels.graphics.tsaplots import plot_acf
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import mean_squared_error
@@ -233,6 +236,7 @@ def graph_predictions(df, seq_length, label_length, model, target_num, enc_lengt
             norm_tensor = torch.tensor([norm_data], dtype=torch.float32).to(device)  # normalized input
             norm_tensor = norm_tensor.permute(0, 2, 1)
             start_time = time.time()  # start time
+            # integrated_gradients(model, norm_tensor, device, steps=100)
             prediction = model.forward(norm_tensor).cpu().detach().numpy()  # forecasted target values
             # Inverse normalization of predicted values
             prediction = list(map(lambda x: (prediction * norm_std[target_num] + norm_mean[target_num]), prediction))
@@ -261,6 +265,7 @@ def graph_predictions(df, seq_length, label_length, model, target_num, enc_lengt
             #     # Add output (t+1 prediction) to the decoder input, then repeat
             #     out = outputs.permute(0, 2, 1)
             #     dec_tensor = torch.cat((dec_tensor, out[:, :, -10:]), dim=2)
+            # integrated_gradients(model, input_tensor, device, steps=100)
             outputs = model.forward(input_tensor, dec_tensor)
             prediction = outputs.cpu().detach().numpy()  # forecasted target values
             # Inverse normalization of predicted values
@@ -281,11 +286,22 @@ def graph_predictions(df, seq_length, label_length, model, target_num, enc_lengt
     time_range = time_range[enc_length:]
     real = df.iloc[:, target_num].to_numpy()[:leftover]  # trim real values if needed
 
-    plt.plot(time_range, real[enc_length:], label='True')
-    plt.plot(time_range, predicted[enc_length:], label='Predicted')
-    plt.xlabel('Time')
-    plt.ylabel('Workload')
-    plt.title('Forecasting Cognitive Workload')
+    plt.plot(time_range, real[enc_length:], label='True', color='#c45452')
+    plt.plot(time_range, predicted[enc_length:], label='Predicted', color='#363134')
+
+    # mae = mean_absolute_error(real[enc_length:], predicted[enc_length:])
+    # mse = mean_squared_error(real[enc_length:], predicted[enc_length:])
+
+    # print(f"Mean Absolute Error (MAE): {mae}")
+    # print(f"Mean Squared Error (MSE): {mse}")
+
+    # Adjust x-labels to be a 10th of their actual value
+    locs, labels = plt.xticks()
+    plt.xticks(locs, [str(int(x / 10)) for x in locs])
+    plt.tick_params(axis='both', which='major', labelsize=12)
+    # plt.xlabel('Time')
+    # plt.ylabel('Workload')
+    # plt.title('Forecasting Cognitive Workload')
     plt.legend()
     plt.show()
 
@@ -302,6 +318,7 @@ def graph_predictions(df, seq_length, label_length, model, target_num, enc_lengt
         else:
             return 'high'
 
+
     final_df = final_df.applymap(convert_to_cat)
     final_df.to_csv('cat_predict.csv', index=False)
 
@@ -312,7 +329,7 @@ def graph_predictions(df, seq_length, label_length, model, target_num, enc_lengt
             acc += 1
 
     total = final_df.shape[0]
-    accuracy = (acc/total) * 100
+    accuracy = (acc / total) * 100
     accuracy = round(accuracy, 2)
 
     print('Accuracy of predictions: ' + str(accuracy) + '%')
@@ -320,17 +337,55 @@ def graph_predictions(df, seq_length, label_length, model, target_num, enc_lengt
     # Compute confusion matrix
     true = final_df['Real Workload']
     pred = final_df['Predicted Workload']
+    # a = real['Real Workload'].to_numpy()
+    # result = adfuller(a)
+    # print('ADF Statistic: %f' % result[0])
+    # print('p-value: %f' % result[1])
+    # plot_acf(a, lags=300)
+    # plt.title('Autocorrelation Function')
+    # plt.show()
     cm = confusion_matrix(true, pred, labels=['low', 'medium', 'high'])
 
     # Print the confusion matrix
     print(cm)
 
     # Optionally, to visualize it, use seaborn heatmap
-    ax = sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-    ax.set_xticklabels(['Low', 'Medium', 'High'])
-    ax.set_yticklabels(['Low', 'Medium', 'High'])
-    ax.set_xlabel('Predicted labels')
-    ax.set_ylabel('True labels')
-    plt.show()
+    # ax = sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+    # ax.set_xticklabels(['Low', 'Medium', 'High'])
+    # ax.set_yticklabels(['Low', 'Medium', 'High'])
+    # ax.set_xlabel('Predicted labels')
+    # ax.set_ylabel('True labels')
+    # plt.show()
 
 
+def integrated_gradients(model, data, device, steps=100):
+    baseline = torch.zeros((65, 1200))
+
+    # Ensure model is in evaluation mode and both tensors are on the same device as the model
+    model.eval()
+    baseline = baseline.to(device)
+    input = data.to(device)
+
+    # Create a linear path from the baseline to the input
+    alphas = torch.linspace(0, 1, steps).to(device)
+    path = torch.cat([baseline + alpha * (input - baseline) for alpha in alphas])
+
+    # Calculate gradients along the path
+    path.requires_grad_(True)
+    with torch.backends.cudnn.flags(enabled=False):
+        path_predictions = model(path)
+        ones = torch.ones_like(path_predictions).to(device)
+        grads = torch.autograd.grad(outputs=path_predictions, inputs=path, grad_outputs=ones, retain_graph=True)[0]
+
+    # Compute integrated gradients
+    integrated_grads = (input - baseline) * grads.mean(dim=0)
+
+    # Since you're only interested in the first dimension
+    attributions = integrated_grads.sum(dim=2)
+
+    print(attributions)
+    attributions = attributions.to('cpu')
+    attributions = np.array(attributions)
+    attributions.transpose()
+
+    return attributions

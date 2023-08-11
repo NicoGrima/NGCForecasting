@@ -46,7 +46,8 @@ class CNN_LSTM(nn.Module):
         # Convolutional layer + pooling layer
         self.cnn = nn.Sequential(
             nn.Conv1d(in_channels=input_dim, out_channels=self.out_channels, kernel_size=kernel_size, padding=padding,
-                      stride=stride)
+                      stride=stride),
+            # nn.ReLU()
             # nn.MaxPool1d(kernel_size=1, padding=0)
         )
 
@@ -131,12 +132,14 @@ class Transformer(nn.Module):
             nn.Conv1d(in_channels=feature_size, out_channels=d_model, kernel_size=e_kernel_size, padding=e_padding,
                       stride=e_stride),
             # nn.LayerNorm(34),
+            # nn.ReLU(),
             nn.Dropout(dropout),
         )
 
         self.trg_embedding = nn.Sequential(
             nn.Linear(in_features=feature_size, out_features=d_model),  # feature_size in in_features if multiple features
             # nn.LayerNorm(d_model),
+            # nn.ReLU(),
             nn.Dropout(dropout)
         )
         # self.trg_embedding = nn.Sequential(
